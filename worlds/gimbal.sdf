@@ -89,7 +89,7 @@
           <geometry>
             <cylinder>
               <radius>0.04</radius>
-              <length>1.0</length>
+              <length>6.0</length>
             </cylinder>
           </geometry>
           <material>
@@ -99,7 +99,7 @@
           </material>
         </visual>
         <visual name="plate_visual">
-          <pose>-0.1 0 1.01 0 0 0</pose>
+          <pose>-0.1 0 6.01 0 0 0</pose>
           <geometry>
             <cylinder>
               <radius>0.2</radius>
@@ -113,16 +113,16 @@
           </material>
         </visual>
         <collision name="post_collision">
-          <pose>-0.2 0 0.5 0 0 0</pose>
+          <pose>-0.2 0 5.5 0 0 0</pose>
           <geometry>
             <cylinder>
               <radius>0.04</radius>
-              <length>1.0</length>
+              <length>6.0</length>
             </cylinder>
           </geometry>
         </collision>
         <collision name="plate_collision">
-          <pose>-0.1 0 1.01 0 0 0</pose>
+          <pose>-0.1 0 6.01 0 0 0</pose>
           <geometry>
             <cylinder>
               <radius>0.2</radius>
@@ -137,9 +137,9 @@
       </joint>
 
       <include>
-        <uri>model://gimbal_small_3d</uri>
+        <uri>model://gimbal_small_3d_custom</uri>
         <name>gimbal</name>
-        <pose degrees="true">0 0 0.9055 90 0 90</pose>    
+        <pose degrees="true">0 0 4.9055 90 0 90</pose>    
       </include>
       <joint name="gimbal_joint" type="revolute">
         <parent>mount_link</parent>

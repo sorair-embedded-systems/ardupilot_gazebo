@@ -1,0 +1,240 @@
+# Base image with ROS 2 Humble
+FROM osrf/ros:humble-desktop
+
+# Environment settings for non-inte
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install tools and dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    wget \
+    cmake \
+    build-essential \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    x11-apps \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Initialize rosdep
+RUN rosdep update
+
+# Setup the environment variable for Gazebo Garden
+ENV GZ_VERSION=garden
+
+# Set the shell to bash to avoid issues with .bash scripts
+SHELL ["/bin/bash", "-c"]
+
+# Add the Gazebo (OSRF) repository and key
+RUN wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list \
+    && apt-get update \
+    && apt-get install -y gz-garden
+
+
+# Create a workspace and clone the necessary repositories
+RUN mkdir -p /root/ws/src && cd /root/ws/src \
+    && git clone https://github.com/gazebosim/ros_gz.git -b humble \
+    && cd /root/ws \
+    && rosdep install -r --from-paths src -i -y --rosdistro humble || echo "Ignoring errors, fix manually if needed"
+
+# Attempt to handle the potential `actuator_msgs` issue
+RUN cd /root/ws/src && git clone https://github.com/rudislabs/actuator_msgs.git
+
+# Build the workspace
+RUN . /opt/ros/humble/setup.bash && \
+    cd /root/ws && \
+    export MAKEFLAGS="-j 1" && \
+    colcon build --parallel-workers=1 --executor sequential
+
+# Install X11, SSH, and other dependencies for GUI support and Gazebo Harmonic
+RUN apt-get update && apt-get install -y \
+    x11-apps \
+    libgz-sim7-dev \
+    rapidjson-dev \
+    git \
+    cmake \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# Clone and build ArduPilot SITL Gazebo plugin
+RUN git clone https://github.com/ArduPilot/ardupilot_gazebo /home/ardupilot_gazebo \
+    && cd /home/ardupilot_gazebo \
+    && mkdir build && cd build \
+    && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    && make -j4
+
+# Set default environment variables for the Gazebo plugin and resources
+ENV GZ_SIM_SYSTEM_PLUGIN_PATH=/home/ardupilot_gazebo/build:$GZ_SIM_SYSTEM_PLUGIN_PATH
+ENV GZ_SIM_RESOURCE_PATH=/home/ardupilot_gazebo/models:/home/ardupilot_gazebo/worlds:$GZ_SIM_RESOURCE_PATH
+
+# Allow for custom plugin and resource paths to be mounted and used
+ARG EXTRA_GZ_SIM_SYSTEM_PLUGIN_PATH
+ARG EXTRA_GZ_SIM_RESOURCE_PATH
+ENV GZ_SIM_SYSTEM_PLUGIN_PATH=${EXTRA_GZ_SIM_SYSTEM_PLUGIN_PATH}:$GZ_SIM_SYSTEM_PLUGIN_PATH
+ENV GZ_SIM_RESOURCE_PATH=:/root/custom_worlds/:/root/custom_models/$GZ_SIM_RESOURCE_PATH
+
+CMD ["bash"]
+
+
+# docker run -it --rm \
+#     -e DISPLAY=$DISPLAY \
+#     --cpus=4  \
+#     -v /tmp/.X11-unix:/tmp/.X11-unix \
+#     -v /dev/dri:/dev/dri \
+#     -v ./worlds/:/root/custom_worlds/ \
+#     -v ./models/:/root/custom_models/ \
+#     --privileged \
+#     --net=host \
+#     gazebo-ardupilot-ros2
+
+
+# docker run -it --rm \
+#     -e DISPLAY=$DISPLAY \
+#     -e EXTRA_GZ_SIM_RESOURCE_PATH=/root/custom_worlds/:/root/custom_models/ \
+#     --cpus=4 \
+#     -v /tmp/.X11-unix:/tmp/.X11-unix \
+#     -v /dev/dri:/dev/dri \
+#     -v $(pwd)/worlds/:/root/custom_worlds/ \
+#     -v $(pwd)/models/:/root/custom_models/ \
+#     --privileged \
+#     gazebo-ardupilot-ros2
+
+
+#     export GZ_SIM_RESOURCE_PATH=/home/ardupilot_gazebo/models:/home/ardupilot_gazebo/worlds:/root/custom_worlds/:/root/custom_models/:$GZ_SIM_RESOURCE_PATH
+
+#     ros2 run ros_gz_bridge parameter_bridge /gimbal/camera/image_raw@sensor_msgs/msg/Image@gz.msgs.Image &
+
+# ----------
+    
+# CI: 
+#     width: 640,
+#     height:480,
+#     distortion  k{0,0,0,0,0},
+#     intrisincs  k{205.5, 0, 320, 0, 205.5, 240, 0, 0,1 },
+#     projection  p{205.5,0,320,0,0,205.5,240,0,0,0,1,0},
+#     rectification_matrix {3x3}Iden
+
+# Name: image1
+# CO: pitch:  , roll: ,yaw: 
+# CP: 0 0 0.9055
+# Person A(Woman) location: 6 -4 0 0 0 145
+# Person B(Man) location: 8 2 0 0 0 0
+# Car location N/A
+
+
+# Name: image2
+# CO: pitch:  , roll: ,yaw: 
+# CP: 0 0 0.9055
+# Person A location: 2.60 -1.62 0 0 0 145
+# Person B location: 8 2 0 0 0 0
+# Car location N/A
+
+
+# Name: image3
+# CO: pitch:  , roll: ,yaw: 
+# CP: 0 0 0.9055
+# Person A(Woman) location: 2.60 -1.62 0 0 0 145
+# Person B(Man) location: 4.91 2.0 0 0 0 0
+# Car location N/A
+
+
+
+# Name: image4
+# CO: pitch:  , roll: ,yaw: 
+# CP: 0 0 0.9055
+# Person A(Woman) location: 1.71 0.56 0 0 0 145
+# Person B(Man) location: 1.90 -0.62 0 0 0 0
+# Car location N/A
+
+
+# Name: image5
+# CO: pitch: 0  , roll: 0 ,yaw: 90 
+# CP: 0 0 0.9055
+# Person A(Woman) location: 2.15 1.95 0 0 0 145
+# Person B(Man) location: 1.90 -0.62 0 0 0 0
+# Car location:  0, 7, 0.01 0 0 0 
+
+
+
+
+# Name: image6
+# CO: pitch: 0  , roll: 0 ,yaw: 90 
+# CP: 0 0 0.9055
+# Person A(Woman) location: 1.94 2.95 0 0 0 145
+# Person B(Man) location: 1.90 -0.62 0 0 0 0
+# Car location:  1.69, 9.62, 0.01 0 0 0 
+
+
+# Name: image7
+# CO: pitch: 0  , roll: 0 ,yaw: 45 
+# CP: 0 0 0.9055
+# Person A(Woman) location: 1.94 2.95 0 0 0 145
+# Person B(Man) location: 1.90 -0.62 0 0 0 0
+# Car location:  1.69, 9.62, 0.01 0 0 0 
+
+
+
+# Name: image8
+# CO: pitch: 0  , roll: 0 ,yaw: -45 
+# CP: 0 0 0.9055
+# Person A(Woman) location: 1.94 2.95 0 0 0 145
+# Person B(Man) location: 2.56 -1.33 0 0 0 0
+# Car location:  1.69, 9.62, 0.01 0 0 0 
+
+
+# Name: image9
+# CO: pitch: 0  , roll: 0 ,yaw: 0 
+# CP: 0 0 4.9055
+# Person A(Woman) location: 4.87 -3.35 0 0 0 145
+# Person B(Man) location: 5.89 2.0 0 0 0 0
+# Car location:  1.69, 9.62, 0.01 0 0 0 
+
+
+
+# Name: image10
+# CO: pitch: 0  , roll: 0 ,yaw: 0 
+# CP: 0 0 4.9055
+# Person A(Woman) location: 5.78 -2.92 0 0 0 145
+# Person B(Man) location: 5.89 2.0 0 0 0 0
+# Car location:  1.69, 9.62, 0.01 0 0 0 
+
+
+# Name: image11
+# CO: pitch: 0.785398 , roll: 0 ,yaw: 0 
+# CP: 0 0 4.9055
+# Person A(Woman) location: 5.78 -2.92 0 0 0 145
+# Person B(Man) location: 5.89 2.0 0 0 0 0
+# Car location:  1.69, 9.62, 0.01 0 0 0 
+
+# Name: image12
+# CO: pitch: 0.785398 , roll: 0 ,yaw: 0 
+# CP: 0 0 4.9055
+# Person A(Woman) location: 2.70 -4.33 0 0 0 145
+# Person B(Man) location: 4.42 2.54 0 0 0 0
+# Car location:  1.69, 9.62, 0.01 0 0 0 
+
+# Name: image13   
+# CO: pitch: 0.785398 , roll: 0 ,yaw: 0.785398 
+# CP: 0 0 4.9055
+# Person A(Woman) location: 2.70 -4.33 0 0 0 145
+# Person B(Man) location: 4.42 2.54 0 0 0 0
+# Car location:  0, 7.0, 0.01 0 0 0 
+
+
+
+# Name: image14   
+# CO: pitch: 0.349066 , roll: 0 ,yaw: 1.5708
+# CP: 0 0 4.9055
+# Person A(Woman) location: -5.06 4.60 0.03  0 0 145
+# Person B(Man) location: 4.42 2.54 0 0 0 0
+# Car location:  -0.90, 6.25, 0.01 0 0 0 
+
+
+# Name: image15   
+# CO: pitch: 0.349066 , roll: 0 ,yaw: 1.5708
+# CP: 0 0 4.9055
+# Person A(Woman) location: -5.06 4.60 0.03  0 0 145
+# Person B(Man) location: 2.88 4.82 0 0 0 0
+# Car location:  -0.90, 6.25, 0.01 0 0 0 
